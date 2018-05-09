@@ -26,18 +26,6 @@
             <artifactId>org.eclipse.jgit</artifactId>
             <version>4.11.0.201803080745-r</version>
         </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.25</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.14</version>
-            <scope>provided</scope>
-        </dependency>
        <!-- <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>

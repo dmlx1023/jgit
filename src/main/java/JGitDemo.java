@@ -1,13 +1,19 @@
 import java.io.*;
+import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
-import jdk.internal.util.xml.impl.Input;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.eclipse.jgit.api.Git;
@@ -27,8 +33,13 @@ public class JGitDemo {
     static final   Pattern pattern = Pattern.compile("\\s*|\t|\r|\n");
     public static void main(String[] args) throws IOException, GitAPIException, ExecutionException, InterruptedException {
 
-        String rootPath = "C:\\Users\\duanm\\Desktop\\517上线\\properties";
-        Properties props = loadProps(rootPath +File.separator+"git.properties");
+        String rootPath = "";
+        rootPath =JGitDemo.class.getProtectionDomain().getCodeSource().getLocation().getFile();
+        rootPath = URLDecoder.decode(rootPath,"utf-8");
+        rootPath=rootPath.substring(0,rootPath.lastIndexOf("/"))+File.separator+"properties";
+        Properties props;
+        props = loadProps(rootPath + File.separator + "git.properties");
+
         String excelPath =props.getProperty("ExcelPath");
         //列从0开始
         int clumnNum =Integer.parseInt(props.getProperty("ClumnNum"));
@@ -37,16 +48,11 @@ public class JGitDemo {
         //所有工程的父目录
         String rootProjectPath = props.getProperty("RootProjectPath");
         //版本号导出路径
-        String exportPath = rootPath +File.separator+"version.txt";
+        String date = LocalDateTime.now().toString().replaceAll("[[\\s-:punct:]]", "");
+        String exportPath = rootPath +File.separator+"version"+date.substring(0,date.lastIndexOf("."))+".txt";
         if (excelPath==null||rootProjectPath==null) {
             throw new RuntimeException("路径读取失败，请检查配置文件！");
         }
-
-
-
-
-
-        //
         File exportFile = new File(exportPath);
         if (exportFile.exists()) {
             exportFile.delete();
@@ -66,50 +72,53 @@ public class JGitDemo {
         if (!rootFile.exists()) {
             throw new RuntimeException("未找到工作空间，请检查路径是否正确：RootProjectPath:"+rootFile.getPath());
         }
-        List<File> fileList = Arrays.asList(rootFile.listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File pathname) {
-                if (pathname.getName().endsWith(".git")) {
-                    return false;
-                }
-                return true;
+        List<File> fileList = Arrays.asList(rootFile.listFiles(pathname -> {
+            if (pathname.getName().endsWith(".git")) {
+                return false;
             }
+            return true;
         }));
         final CountDownLatch countDownLatch = new CountDownLatch(fileList.size());
         BufferedWriter buf = new BufferedWriter(new FileWriter(exportFile));
         for (File file : fileList) {
-            //按照每个系统来查询所有的单号的版本，时间倒序
-            executorService.execute(new Runnable() {
-                @Override
-                public void run() {
-                        StringBuffer sb = new StringBuffer();
-                        sb.append("当前系统：" + file.getName()+"\n");
-                    for (String cq : cqList) {
-                        if (cq == null || "".equals(cq.trim())) {
-                            continue;
-                        }
-                        List<String> versionList = null;
-                        try {
-                            versionList = getIdName(file, cq);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        } catch (GitAPIException e) {
-                            e.printStackTrace();
-                        }
-                        int length = versionList.size() - 1;
-                        for (; length >= 0; length--) {
-                                sb.append(versionList.get(length)).append("\n");
-                        }
+            executorService.execute(() -> {
+            //先拉代码
+                try {
+                    gitPull(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (GitAPIException e) {
+                    e.printStackTrace();
+                }
+                //按照每个系统来查询所有的单号的版本，时间倒序
+                    StringBuffer sb = new StringBuffer();
+                    sb.append("当前系统：" + file.getName()+"\n");
+                for (String cq : cqList) {
+                    if (cq == null || "".equals(cq.trim())) {
+                        continue;
                     }
-                    countDownLatch.countDown();
+                    List<String> versionList = null;
                     try {
-
-                        sb.append("========================");
-                        buf.write(sb.toString());
-                        buf.newLine();
+                        versionList = getIdName(file, cq);
                     } catch (IOException e) {
                         e.printStackTrace();
+                    } catch (GitAPIException e) {
+                        e.printStackTrace();
                     }
+                    int length = versionList.size() - 1;
+                    for (; length >= 0; length--) {
+                            sb.append(versionList.get(length)).append("\n");
+                    }
+                }
+                try {
+
+                    sb.append("========================");
+                    buf.write(sb.toString());
+                    buf.newLine();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }finally {
+                    countDownLatch.countDown();
                 }
             });
         }
@@ -126,26 +135,14 @@ public class JGitDemo {
      * @Version: 1.0
      **/
     static List<String> getIdName(File file, String cqSeq) throws IOException, GitAPIException {
-        DateTimeFormatter dtf= DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         List<String> result = new ArrayList();
-        Git git = null;
-        try {
-            git = Git.open(file);
-        } catch (Exception e) {
-            return new ArrayList<>();
-        }
-        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(git.getRepository().findRef("HEAD").getName()).call();
-//        git.pull().setCredentialsProvider(new UsernamePasswordCredentialsProvider("duanmlx", "duanmlx")).setRebase(true).call();
-        //说明当前分支时master要切换到dev
-        if (git.getRepository().resolve("master")!=null){
-            git.checkout().setCreateBranch(false).setName("dev").call();
-        }
+        Git git = Git.open(file);
         Iterable<RevCommit> commits = git.log().call();
         for (RevCommit commit : commits) {
             String commitMsg = commit.getFullMessage().toLowerCase();
             if (commitMsg.indexOf(cqSeq.toLowerCase())!=-1) {
                 ObjectId id = commit.getId();
-                String content = "版本号：" + id.getName().substring(0, 7) + "==>提交备注：" + commit.getFullMessage() + "==>开发人员："
+                String content = "版本号：" + id.getName() + "==>提交备注：" + commit.getFullMessage() + "==>开发人员："
                         + commit.getAuthorIdent().getName() + "==>提交时间:" + LocalDateTime.ofInstant(commit.
                         getAuthorIdent().getWhen().toInstant(), ZoneId.systemDefault()) + "==>版本所在目录:" + file.getName() + "==>版本所在分支：" + git.getRepository().getBranch();
 
@@ -176,7 +173,25 @@ public class JGitDemo {
         }
         return list;
     }
+    static void gitPull(File file) throws IOException, GitAPIException {
+        Git git = null;
+        try {
+            git = Git.open(file);
+        } catch (Exception e) {
+            System.out.println("不是git目录："+file.getName());
 
+        }
+        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(git.getRepository().findRef("HEAD").getName()).call();
+        //说明当前分支是master要切换到dev
+        if (git.getRepository().resolve("master")!=null){
+            git.checkout().setCreateBranch(false).setName("dev").call();
+        }
+        try {
+            git.pull().setCredentialsProvider(new UsernamePasswordCredentialsProvider("duanmlx", "duanmlx")).setRebase(true).call();
+        }catch (Exception e){
+            System.out.println("代码拉取失败："+file.getName());
+        }
+    }
     static Properties loadProps(String path) throws IOException {
         Properties properties = new Properties();
         FileInputStream in = null;

@@ -18,7 +18,7 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 public class GitClone {
     public static void main(String[] args) throws IOException, GitAPIException, InterruptedException {
 //        common.git  "usr" "common" "ord" "cmt" "mkt" "cop" "ipf" "bth" "lvs"  "mnt" "getway" "mgt" vx-merchant-pc vx-mgt-pc vx-user-mobile vx-user-pc
-         String REMOTE_URL_BASE = "ssh://duanmlx@66.6.52.130:29418/ifp/";
+            String REMOTE_URL_BASE = "ssh://duanmlx@66.6.52.130:29418/ifp/";
         String[] array = {"usr","common","ord","cmt" ,"mkt", "cop", "ipf" ,"bth", "lvs" , "mnt", "getway", "mgt", "vx-merchant-pc", "vx-mgt-pc", "vx-user-mobile",
                 "vx-user-pc"};
         ExecutorService executorService = Executors.newCachedThreadPool();
