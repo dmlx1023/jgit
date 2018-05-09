@@ -1,11 +1,9 @@
 import java.io.*;
+import java.nio.charset.Charset;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
@@ -28,13 +26,27 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 public class JGitDemo {
     static final   Pattern pattern = Pattern.compile("\\s*|\t|\r|\n");
     public static void main(String[] args) throws IOException, GitAPIException, ExecutionException, InterruptedException {
-        String excelPath = "C:\\Users\\duanm\\Desktop\\517上线\\上线内容更新表更新至0517.xlsx";
-        int clumnNum = 4;
+
+        String rootPath = "C:\\Users\\duanm\\Desktop\\517上线\\properties";
+        Properties props = loadProps(rootPath +File.separator+"git.properties");
+        String excelPath =props.getProperty("ExcelPath");
+        //列从0开始
+        int clumnNum =Integer.parseInt(props.getProperty("ClumnNum"));
+        //行从1开始
+        int lineNum=Integer.parseInt(props.getProperty("LineNum"));
         //所有工程的父目录
-        String rootProjectPath = "F:\\gitCherryPick";
+        String rootProjectPath = props.getProperty("RootProjectPath");
         //版本号导出路径
-        String suffix = String.valueOf(new Date().getMonth());
-        String exportPath = "D:\\git\\ord" + File.separator + suffix + ".txt";
+        String exportPath = rootPath +File.separator+"version.txt";
+        if (excelPath==null||rootProjectPath==null) {
+            throw new RuntimeException("路径读取失败，请检查配置文件！");
+        }
+
+
+
+
+
+        //
         File exportFile = new File(exportPath);
         if (exportFile.exists()) {
             exportFile.delete();
@@ -42,9 +54,19 @@ public class JGitDemo {
         exportFile.createNewFile();
         ExecutorService executorService = Executors.newCachedThreadPool();
         //待读取的excel地址,返回cqSeq的list
-        List<String> cqList = readExcel(new File(excelPath), clumnNum);
-        File rootLile = new File(rootProjectPath);
-        List<File> fileList = Arrays.asList(rootLile.listFiles(new FileFilter() {
+        File excelReadFile = new File(excelPath);
+        if (!excelReadFile.exists()) {
+            throw new RuntimeException("Excel文件不存在，请检查路径是否正确：ExcelPath:"+excelReadFile.getPath());
+        }
+        List<String> cqList = readExcel(excelReadFile, clumnNum,lineNum);
+        if (cqList.size() == 0) {
+            throw new RuntimeException("cq单号为空，请检查excel的cq单号的行和列是否配置正确！");
+        }
+        File rootFile = new File(rootProjectPath);
+        if (!rootFile.exists()) {
+            throw new RuntimeException("未找到工作空间，请检查路径是否正确：RootProjectPath:"+rootFile.getPath());
+        }
+        List<File> fileList = Arrays.asList(rootFile.listFiles(new FileFilter() {
             @Override
             public boolean accept(File pathname) {
                 if (pathname.getName().endsWith(".git")) {
@@ -123,7 +145,7 @@ public class JGitDemo {
             String commitMsg = commit.getFullMessage().toLowerCase();
             if (commitMsg.indexOf(cqSeq.toLowerCase())!=-1) {
                 ObjectId id = commit.getId();
-                String content = "版本号：" + id.getName().substring(0, 7) + "==>提交备注：" + commitMsg + "==>开发人员："
+                String content = "版本号：" + id.getName().substring(0, 7) + "==>提交备注：" + commit.getFullMessage() + "==>开发人员："
                         + commit.getAuthorIdent().getName() + "==>提交时间:" + LocalDateTime.ofInstant(commit.
                         getAuthorIdent().getWhen().toInstant(), ZoneId.systemDefault()) + "==>版本所在目录:" + file.getName() + "==>版本所在分支：" + git.getRepository().getBranch();
 
@@ -133,13 +155,14 @@ public class JGitDemo {
         return result;
     }
 
-    public static List<String> readExcel(File file, int colum) throws IOException {
+    public static List<String> readExcel(File file, int colum,int lineNum) throws IOException {
         List<String> list = new ArrayList<>();
         //通过名字读取会商户jvm占用excel的
         InputStream inputStream = new FileInputStream(file);
         XSSFWorkbook xssfWorkbook = new XSSFWorkbook(inputStream);
         XSSFSheet hssfSheet = xssfWorkbook.getSheetAt(0);
-        int firstRowNum = hssfSheet.getFirstRowNum();
+//        int firstRowNum = hssfSheet.getFirstRowNum();
+        int firstRowNum = lineNum;
         int lastRowNum = hssfSheet.getLastRowNum();
         for (; firstRowNum < lastRowNum; firstRowNum++) {
             String cellValue = hssfSheet.getRow(firstRowNum).getCell(colum).getStringCellValue();
@@ -152,6 +175,23 @@ public class JGitDemo {
             inputStream.close();
         }
         return list;
+    }
+
+    static Properties loadProps(String path) throws IOException {
+        Properties properties = new Properties();
+        FileInputStream in = null;
+        try {
+         in = new FileInputStream(new File(path));
+            properties.load(new InputStreamReader(in, Charset.defaultCharset()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (in != null) {
+             in.close();
+            }
+        }
+
+        return properties;
     }
 
 }
