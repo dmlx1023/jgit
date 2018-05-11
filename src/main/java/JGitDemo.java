@@ -79,7 +79,9 @@ public class JGitDemo {
         FileWriter fw = new FileWriter(exportFile);
         BufferedWriter buf = new BufferedWriter(fw);
         for (File file : fileList) {
+            System.out.println(file.getName()+"开始执行。。。");
             executorService.execute(() -> {
+                CopyOnWriteArrayList<Map<String, Object>> safeList = new CopyOnWriteArrayList<>();
             //先拉代码
                 StringBuffer sb = new StringBuffer();
                 //按照每个系统来查询所有的单号的版本，时间倒序
@@ -96,19 +98,18 @@ public class JGitDemo {
                     if (cq == null || "".equals(cq.trim())) {
                         continue;
                     }
-                    List<Map<String,Object>> versionList = null;
                     try {
-                        versionList = getIdName(file, cq);
-                        versionList.sort(Comparator.comparing(o -> ((LocalDateTime) o.get("DateTime"))));
+                        safeList.addAll(getIdName(file, cq));
                     } catch (IOException e) {
                         e.printStackTrace();
                     } catch (GitAPIException e) {
                         e.printStackTrace();
                     }
-                    int length = versionList.size() - 1;
-                    for (; length >= 0; length--) {
-                            sb.append(versionList.get(length).get("Content")).append("\n");
-                    }
+                }
+                safeList.sort(Comparator.comparing(o -> (((LocalDateTime) o.get("DateTime")))));
+                int length = safeList.size();
+                for (int i=0; i<length ; i++) {
+                    sb.append(safeList.get(i).get("Content")).append("\n");
                 }
                 sb.append("========================\n");
                 content.append(sb);
@@ -121,11 +122,11 @@ public class JGitDemo {
         buf.newLine();
         buf.flush();
         fw.close();
-        executorService.shutdownNow();
-        if (!executorService.isShutdown()) {
-            executorService.awaitTermination(2, TimeUnit.MINUTES);
+        executorService.shutdown();
+        while (!executorService.awaitTermination(5, TimeUnit.SECONDS)){
+          System.out.println("线程池未关闭");
         }
-        LOG.debug("版本导出完毕");
+        System.out.println("线程池关闭，任务执行结束。\n请查看版本文件："+exportPath+"\n 作者:duanmu3209211994@163.com CopyRight MIT Licence ");
     }
 
     /**
