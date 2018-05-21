@@ -144,9 +144,9 @@ public class JGitDemo {
                         getAuthorIdent().getWhen().toInstant(), ZoneId.systemDefault()) + "==>版本所在目录:" + file.getName() + "==>版本所在分支：" + git.getRepository().getBranch();
                 Map map = new HashMap();
                 map.put("DateTime", LocalDateTime.ofInstant(commit.
-                        getAuthorIdent().getWhen().toInstant(), ZoneId.systemDefault()));
+                        getCommitterIdent().getWhen().toInstant(), ZoneId.systemDefault()));
                 map.put("Content", pattern.matcher(content).replaceAll(""));
-                result.add(map);
+                result.add(map); 
             }
         }
         return result;
