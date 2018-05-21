@@ -7,8 +7,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.eclipse.jgit.api.Git;
@@ -26,7 +24,6 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
  **/
 public class JGitDemo {
     static final   Pattern pattern = Pattern.compile("\\s*|\t|\r|\n");
-    public static final Log LOG = LogFactory.getLog(JGitDemo.class);
     public static void main(String[] args) throws IOException, GitAPIException, ExecutionException, InterruptedException {
 
         String rootPath = "";
@@ -113,7 +110,6 @@ public class JGitDemo {
                 }
                 sb.append("========================\n");
                 content.append(sb);
-                LOG.debug(file.getName() + "查找结束！");
                 countDownLatch.countDown();
             });
         }
@@ -126,7 +122,7 @@ public class JGitDemo {
         while (!executorService.awaitTermination(5, TimeUnit.SECONDS)){
           System.out.println("线程池未关闭");
         }
-        System.out.println("线程池关闭，任务执行结束。\n请查看版本文件："+exportPath+"\n 作者:duanmu3209211994@163.com CopyRight MIT Licence ");
+        System.out.println("线程池关闭，任务执行结束。\n请查看版本文件："+exportFile.getPath()+"\n 作者:duanmu3209211994@163.com CopyRight MIT Licence ");
     }
 
     /**
@@ -183,8 +179,7 @@ public class JGitDemo {
         try {
             git = Git.open(file);
         } catch (Exception e) {
-            LOG.debug("不是git目录：" + file.getName());
-
+            e.printStackTrace();
         }
         File lockFile = new File(file.getAbsolutePath() + File.separator + ".git\\index.lock");
         if (lockFile.exists()) {
@@ -199,7 +194,7 @@ public class JGitDemo {
             git.pull().setCredentialsProvider(new UsernamePasswordCredentialsProvider("duanmlx", "duanmlx")).setRebase(true).call();
         }catch (Exception e){
             String error = "代码拉取失败：" + file.getName();
-            LOG.debug(error);
+           e.printStackTrace();
             return error;
         }
         git.close();
