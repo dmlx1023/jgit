@@ -6,7 +6,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
 /**
@@ -19,8 +21,8 @@ public class GitClone {
     public static void main(String[] args) throws IOException, GitAPIException, InterruptedException {
 //        common.git  "usr" "common" "ord" "cmt" "mkt" "cop" "ipf" "bth" "lvs"  "mnt" "getway" "mgt" vx-merchant-pc vx-mgt-pc vx-user-mobile vx-user-pc
             String REMOTE_URL_BASE = "ssh://duanmlx@66.6.52.130:29418/ifp/";
-        String[] array = {"usr","common","ord","cmt" ,"mkt", "cop", "ipf" ,"bth", "lvs" , "mnt", "getway", "mgt", "vx-merchant-pc", "vx-mgt-pc", "vx-user-mobile",
-                "vx-user-pc"};
+//        String[] array = {"usr","common","ord","cmt" ,"mkt", "cop", "ipf" ,"bth", "lvs" , "mnt", "getway", "mgt", "vx-merchant-pc", "vx-mgt-pc", "vx-user-mobile", "vx-user-pc"};
+        String[] array = {"test"};
         ExecutorService executorService = Executors.newCachedThreadPool();
 //        ExecutorService executorService = Executors.newFixedThreadPool(5);
         CountDownLatch countDownLatch = new CountDownLatch(array.length);
@@ -30,20 +32,14 @@ public class GitClone {
                 @Override
                 public void run() {
                     File file1 = new File(file.getPath() + File.separator + s);
-                    file1.deleteOnExit();
-                    if (!file1.exists()) {
-                        file1.mkdir();
-                    }
-                    String REMOTE_URL = REMOTE_URL_BASE + s + ".git";
                     try {
-                        Git.cloneRepository().setCredentialsProvider(
-                                new UsernamePasswordCredentialsProvider
-                                        ("duanmlx", "duanmlx")).setDirectory(file1).setURI(REMOTE_URL).setBranch("dev").call();
-                        System.out.println(s+"执行完毕");
-                        countDownLatch.countDown();
-                    } catch (Exception e) {
+                        gitTagAdd(file1);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (GitAPIException e) {
                         e.printStackTrace();
                     }
+
                 }
             });
 
@@ -56,5 +52,34 @@ public class GitClone {
 
     }
 
-
+    static String gitTagAdd(File file) throws IOException, GitAPIException {
+        String result = "";
+        Git git = null;
+        try {
+            git = Git.open(file);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        File lockFile = new File(file.getAbsolutePath() + File.separator + ".git\\index.lock");
+        if (lockFile.exists()) {
+            lockFile.delete();
+        }
+        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(git.getRepository().findRef("HEAD").getName()).call();
+        //说明当前分支是dev要切换到master
+        if (git.getRepository().resolve("dev")!=null){
+            git.checkout().setCreateBranch(false).setName("master").call();
+        }
+        try {
+            git.pull().setCredentialsProvider(new UsernamePasswordCredentialsProvider("duanmlx", "duanmlx")).setRebase(true).call();
+            PersonIdent personIdent = new PersonIdent(git.getRepository());
+            git.tag().setTagger(personIdent).setMessage("mess").setName("name").call();
+            git.push().setCredentialsProvider(new UsernamePasswordCredentialsProvider("duanmlx", "duanmlx")).call();
+        }catch (Exception e){
+            String error = "代码拉取失败：" + file.getName();
+            e.printStackTrace();
+            return error;
+        }
+        git.close();
+        return result;
+    }
 }

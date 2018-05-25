@@ -1,5 +1,3 @@
-package PACKAGE_NAME;
-
 /**
  * @Description
  * @Author duanmulixiang
@@ -7,4 +5,13 @@ package PACKAGE_NAME;
  * @Version 1.0
  **/
 public class StaticTest {
+
+    public static void main(String[] args){
+            System.out.println("2222 ");
+            test();
+        }
+
+        static void  test(){
+        System.out.println("1111");
+        }
 }

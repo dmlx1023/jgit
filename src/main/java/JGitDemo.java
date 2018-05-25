@@ -146,7 +146,7 @@ public class JGitDemo {
                 map.put("DateTime", LocalDateTime.ofInstant(commit.
                         getCommitterIdent().getWhen().toInstant(), ZoneId.systemDefault()));
                 map.put("Content", pattern.matcher(content).replaceAll(""));
-                result.add(map); 
+                result.add(map);
             }
         }
         return result;
